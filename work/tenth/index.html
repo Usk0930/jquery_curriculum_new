@@ -28,51 +28,39 @@
     <script src="../../common/js/jquery.js"></script>
     <script src="./js/appid.js"></script>
     <script>
-      // 楽天ブックスの総合検索APIを使って製作してください。
-      // answerの挙動を良く見てね！
-      //
-      // 下記URLにAPIの仕様が載っているので、ブラウザで開いて参考にしてください。
-      // https://webservice.rakuten.co.jp/api/bookstotalsearch/
-      //
-      //
-      // [使うメソッド]
-      // e.preventDefault イベントをキャンセルするためのメソッド。今回はaタグの遷移を無効化します。
-      // on('click') onメソッドを使うことで、動的に出力される要素に対してもイベント登録が行えます。
-      // $.each(配列, function functionName() {}) 配列に対しての繰り返し処理が行えます。
-      // $.ajax({}) 外部ファイルやURLに対してデータをリクエストすることができます。
-      // 以下は今回使う$.ajaxの基本的な形です。
-      //
       $(function(){
-        var page;
+        // グローバル変数ここから
+        var page = null;
+        var keyword = '';
+        var GET_QUANTITY = 20;
+        var FIRST_PAGE = 1;
+        // グローバル変数ここまで
 
-        function error_message(text) {
-          $('.message').empty();
+        // グローバル関数ここから
+        function errorMessage(text) {
           $('.message').append(text);
         }
-
-        function ajax(){
-          var keyword = $('.search__text__input').val();
+        function reset() {
           $('.lists').empty();
           $('.pager').remove();
           $('.message').empty();
+        }
+        function getData(){
+          reset();
           $.ajax({
             url: 'https://app.rakuten.co.jp/services/api/BooksTotal/Search/20130522',
             type: 'GET',
             datatype: 'json',
             data: {
-              // 「区分:サービス固有パラメーター」を確認して、必要な情報をdata内に入れましょう。
               keyword: keyword,
               applicationId: appId,
               booksGenreId: '001',
-              hits: 20,
+              hits: GET_QUANTITY,
               page: page
             },
           }).done(function(data) {
-            console.log(data);
-            // console.log(data.Items[0].Item.title);
-            // console.log(keyword);
-            // console.log(data.count);
-            if (data.hits !== 0) {
+            // doneメソッド内　ローカル関数ここから
+            function pager() {
               var pager = '<div class="pager" data-js="pager"> <div class="counter">' +
                           '<span class="counter-current">' + data.page + '</span>' + '/' +
                           '<span class="counter-all">' + data.pageCount + '</span>' + '</div>' +
@@ -81,87 +69,88 @@
                           '<a class="btn-item" data-js="page-next" href="">次へ</a>' +
                           '</div></div>';
               $('.lists').after(pager);
-                            
-              if (data.pageCount === 1) {
-                $('.btn-item').addClass('disabled');
-              } else if (data.page === data.first) {
+              if (data.page === FIRST_PAGE) {
                 $("[data-js='page-prev']").addClass('disabled');
-              } else if (data.page === data.pageCount) {
+              } if (data.page === data.pageCount) {
                 $("[data-js='page-next']").addClass('disabled');
               }
-
-              $.each(data.Items, function(i,item) {
-                console.log(item);
-                // console.log(typeof(item.Item.title));
-                var list = '<li class="lists__item">' + '<div class="lists__item__inner">' + '<a href="' + item.Item.itemUrl + '" class="lists__item__link" target="_blank">' +
-                          '<img src="' + item.Item.largeImageUrl + '" class="lists__item__img" alt="">' +
-                          '<p class="lists__item__detail">作品名：' + item.Item.title + '</p>' +
-                          '<p class="lists__item__detail">作者：' + item.Item.author + '</p>' +
-                          '<p class="lists__item__detail">出版社：' + item.Item.publisherName + '</p>' +
-                          '</a></div></li>';
-                $('.lists').append(list);
-              })
-            } else {
-              var nothing_result = '<div><p>検索結果が見つかりませんでした。</p><p>別のキーワードで検索してください。</p></div>';
-              error_message(nothing_result);
-              // console.log(data);
             }
-          }).fail(function(data) {
-              // データの取得が失敗した時の処理
-              // console.log(data);
-              if (data.status === 400) {
-                var wrong_parameter = '<div><p>検索文字が入力されていません。</p></div>';
-                error_message(wrong_parameter);
-              } else if (data.status === 429) {
-                var too_many_requests = '<div><p>リクエスト過多です。しばらく時間を置いてからお試しください。</p></div>';
-                error_message(too_many_requests);
-              } else if (data.status === 0) {
-                var network_error = '<div><p>通信に失敗しました。インターネットの接続をご確認ください。</p></div>';
-                error_message(network_error);
+            function item() {
+              var lists = [];
+              $.each(data.Items, function(i,book) {
+                console.log(book);
+                var list = '<li class="lists__item">' + '<div class="lists__item__inner">' + '<a href="' + book.Item.itemUrl + '" class="lists__item__link" target="_blank">' +
+                          '<img src="' + book.Item.largeImageUrl + '" class="lists__item__img" alt="">' +
+                          '<p class="lists__item__detail">作品名：' + book.Item.title + '</p>' +
+                          '<p class="lists__item__detail">作者：' + book.Item.author + '</p>' +
+                          '<p class="lists__item__detail">出版社：' + book.Item.publisherName + '</p>' +
+                          '</a></div></li>';
+                lists[i] = list;
+              })
+              $('.lists').append(lists);
+            }
+            // doneメソッド内　ローカル関数ここまで
+            
+            if (data.hits === 0) {
+              var nothing_result = '<div><p>検索結果が見つかりませんでした。</p><p>別のキーワードで検索してください。</p></div>';
+              errorMessage(nothing_result);
+            } else {
+              pager();
+              item();
+            }
+          }).fail(function(error) {
+              switch(error.status) {
+                case 0:
+                  var network_error = '<div><p>通信に失敗しました。インターネットの接続をご確認ください。</p></div>';
+                  errorMessage(network_error);
+                  break;
+                case 400:
+                  var wrong_parameter = '<div><p>検索文字が入力されていません。</p></div>';
+                  errorMessage(wrong_parameter);
+                  break;
+                case 429:
+                  var too_many_requests = '<div><p>リクエスト過多です。しばらく時間を置いてからお試しください。</p></div>';
+                  errorMessage(too_many_requests);
+                  break;
+                case 500:
+                  var system_error = '<div><p>システムエラーです。</p></div>';
+                  errorMessage(system_error);
+                  break;
+                case 503:
+                  var service_unavailable = '<div><p>メンテナンス中です。</p></div>';
+                  errorMessage(service_unavailable);
+                  break;
+                default :
+                  var unknown_error = '<div><p>予期せぬエラーが発生しました。</p></div>'
+                  errorMessage(unknown_error);
               }
           });
         }
+        // グローバル関数ここまで
 
+        // クリック時のイベントここから
         $('.search__btn').on('click',function(){
-          page = 1;
-          ajax();
+          page = FIRST_PAGE;
+          keyword = $('.search__text__input').val();
+          getData();
         })
-
         $('div').on('click','.btn-item',function(event){
-          // console.log($(this).attr("class"));
           event.preventDefault();
-          // console.log ($(this).data('js'));
-          if ($(this).attr("class") !== 'btn-item disabled') {
-            if ($(this).data('js') === 'page-prev') {
-              page -= 1;
-              // console.log(page);
-            } else if ($(this).data('js') === 'page-next') {
-              page += 1;
-              // console.log(page);
+          if ($(this).hasClass('disabled')) {
+            return false;
+          } else {
+            switch($(this).data('js')){
+              case 'page-prev':
+                page--;
+                break;
+              case 'page-next':
+                page++;
             }
-            ajax();
+            getData(keyword);
           }
         })
+        // クリック時のイベントここまで
       })
-
-      //
-      // 取得できた書籍の件数をもとに、ページャを作成しましょう
-      // ページャの条件
-      // ├ 「現在のページ数」と「全てのページ数」が表示されている
-      // ├ 「前へ」と「次へ」のボタンがある
-      // ├ 1ページ目では「前へ」に、最後のページでは「次へ」にdisabledクラスをつけて非活性（使用不能）にする
-      // └ 1ページしかない場合はどちらもdisabledクラスをつけて非活性にする
-      //
-      // ページャのテンプレート
-      // <div class="pager" data-js="pager">
-      //   <div class="counter">
-      //     <span class="counter-current"></span>/<span class="counter-all"></span>
-      //   </div>
-      //   <div class="btn-wrapper">
-      //     <a class="btn-item" data-js="page-prev" href="">前へ</a>
-      //     <a class="btn-item" data-js="page-next" href="">次へ</a>
-      //   </div>
-      // </div>
     </script>
   </body>
 </html>
