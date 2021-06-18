@@ -31,99 +31,112 @@
       $(function(){
         // グローバル変数ここから
         var page = null;
-        var keyword = '';
+        var search_keyword = '';
         var GET_QUANTITY = 20;
         var FIRST_PAGE = 1;
         // グローバル変数ここまで
 
         // グローバル関数ここから
-        function errorMessage(text) {
+        function messageShow(text) {
           $('.message').append(text);
         }
-        function reset() {
+
+        function errorMessagesShow(error) {
+          switch(error.status) {
+            case 0:
+              var network_error = '<div><p>通信に失敗しました。インターネットの接続をご確認ください。</p></div>';
+              messageShow(network_error);
+              break;
+            case 400:
+              var wrong_parameter = '<div><p>検索文字が入力されていません。</p></div>';
+              messageShow(wrong_parameter);
+              break;
+            case 429:
+              var too_many_requests = '<div><p>リクエスト過多です。しばらく時間を置いてからお試しください。</p></div>';
+              messageShow(too_many_requests);
+              break;
+            case 500:
+              var system_error = '<div><p>システムエラーです。</p></div>';
+              messageShow(system_error);
+              break;
+            case 503:
+              var service_unavailable = '<div><p>メンテナンス中です。</p></div>';
+              messageShow(service_unavailable);
+              break;
+            default :
+              var unknown_error = '<div><p>予期せぬエラーが発生しました。</p></div>'
+              messageShow(unknown_error);
+              break;
+          }
+        }
+
+        function showReset() {
           $('.lists').empty();
           $('.pager').remove();
           $('.message').empty();
         }
+
+        function pagerShow(data) {
+          var pager = '<div class="pager" data-js="pager"> <div class="counter">' +
+                      '<span class="counter-current">' + data.page + '</span>' + '/' +
+                      '<span class="counter-all">' + data.pageCount + '</span>' + '</div>' +
+                      '<div class="btn-wrapper">' +
+                      '<a class="btn-item" data-js="page-prev" href="">前へ</a>' +
+                      '<a class="btn-item" data-js="page-next" href="">次へ</a>' +
+                      '</div></div>';
+          $('.lists').after(pager);
+
+          if (data.page === FIRST_PAGE) {
+            $("[data-js='page-prev']").addClass('disabled');
+          }
+
+          if (data.page === data.pageCount) {
+            $("[data-js='page-next']").addClass('disabled');
+          }
+        }
+
+        function itemShow(data) {
+          var lists = '';
+
+          $.each(data.Items, function(i,book) {
+            var list = '<li class="lists__item">' + '<div class="lists__item__inner">' + '<a href="' + book.Item.itemUrl + '" class="lists__item__link" target="_blank">' +
+                      '<img src="' + book.Item.largeImageUrl + '" class="lists__item__img" alt="">' +
+                      '<p class="lists__item__detail">作品名：' + book.Item.title + '</p>' +
+                      '<p class="lists__item__detail">作者：' + book.Item.author + '</p>' +
+                      '<p class="lists__item__detail">出版社：' + book.Item.publisherName + '</p>' +
+                      '</a></div></li>';
+            lists += list;
+          })
+
+          $('.lists').append(lists);
+        }
+
         function getData(){
-          reset();
+          showReset();
+
           $.ajax({
             url: 'https://app.rakuten.co.jp/services/api/BooksTotal/Search/20130522',
             type: 'GET',
             datatype: 'json',
             data: {
-              keyword: keyword,
+              keyword: search_keyword,
               applicationId: appId,
               booksGenreId: '001',
               hits: GET_QUANTITY,
               page: page
             },
+
           }).done(function(data) {
-            // doneメソッド内　ローカル関数ここから
-            function pager() {
-              var pager = '<div class="pager" data-js="pager"> <div class="counter">' +
-                          '<span class="counter-current">' + data.page + '</span>' + '/' +
-                          '<span class="counter-all">' + data.pageCount + '</span>' + '</div>' +
-                          '<div class="btn-wrapper">' +
-                          '<a class="btn-item" data-js="page-prev" href="">前へ</a>' +
-                          '<a class="btn-item" data-js="page-next" href="">次へ</a>' +
-                          '</div></div>';
-              $('.lists').after(pager);
-              if (data.page === FIRST_PAGE) {
-                $("[data-js='page-prev']").addClass('disabled');
-              } if (data.page === data.pageCount) {
-                $("[data-js='page-next']").addClass('disabled');
-              }
-            }
-            function item() {
-              var lists = [];
-              $.each(data.Items, function(i,book) {
-                console.log(book);
-                var list = '<li class="lists__item">' + '<div class="lists__item__inner">' + '<a href="' + book.Item.itemUrl + '" class="lists__item__link" target="_blank">' +
-                          '<img src="' + book.Item.largeImageUrl + '" class="lists__item__img" alt="">' +
-                          '<p class="lists__item__detail">作品名：' + book.Item.title + '</p>' +
-                          '<p class="lists__item__detail">作者：' + book.Item.author + '</p>' +
-                          '<p class="lists__item__detail">出版社：' + book.Item.publisherName + '</p>' +
-                          '</a></div></li>';
-                lists[i] = list;
-              })
-              $('.lists').append(lists);
-            }
-            // doneメソッド内　ローカル関数ここまで
-            
             if (data.hits === 0) {
               var nothing_result = '<div><p>検索結果が見つかりませんでした。</p><p>別のキーワードで検索してください。</p></div>';
-              errorMessage(nothing_result);
+              messageShow(nothing_result);
             } else {
-              pager();
-              item();
+              pagerShow(data);
+              itemShow(data);
             }
+
           }).fail(function(error) {
-              switch(error.status) {
-                case 0:
-                  var network_error = '<div><p>通信に失敗しました。インターネットの接続をご確認ください。</p></div>';
-                  errorMessage(network_error);
-                  break;
-                case 400:
-                  var wrong_parameter = '<div><p>検索文字が入力されていません。</p></div>';
-                  errorMessage(wrong_parameter);
-                  break;
-                case 429:
-                  var too_many_requests = '<div><p>リクエスト過多です。しばらく時間を置いてからお試しください。</p></div>';
-                  errorMessage(too_many_requests);
-                  break;
-                case 500:
-                  var system_error = '<div><p>システムエラーです。</p></div>';
-                  errorMessage(system_error);
-                  break;
-                case 503:
-                  var service_unavailable = '<div><p>メンテナンス中です。</p></div>';
-                  errorMessage(service_unavailable);
-                  break;
-                default :
-                  var unknown_error = '<div><p>予期せぬエラーが発生しました。</p></div>'
-                  errorMessage(unknown_error);
-              }
+              errorMessagesShow(error);
           });
         }
         // グローバル関数ここまで
@@ -131,23 +144,27 @@
         // クリック時のイベントここから
         $('.search__btn').on('click',function(){
           page = FIRST_PAGE;
-          keyword = $('.search__text__input').val();
+          search_keyword = $('.search__text__input').val();
           getData();
         })
+
         $('div').on('click','.btn-item',function(event){
           event.preventDefault();
+
           if ($(this).hasClass('disabled')) {
             return false;
-          } else {
-            switch($(this).data('js')){
-              case 'page-prev':
-                page--;
-                break;
-              case 'page-next':
-                page++;
-            }
-            getData(keyword);
           }
+
+          switch($(this).data('js')){
+            case 'page-prev':
+              page--;
+              break;
+            case 'page-next':
+              page++;
+              break;
+          }
+          
+          getData(search_keyword);
         })
         // クリック時のイベントここまで
       })
